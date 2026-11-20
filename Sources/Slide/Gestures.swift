@@ -31,10 +31,7 @@ final class Gestures: @unchecked Sendable {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: types.reduce(CGEventMask(0)) { $0 | 1 << $1.rawValue },
-            callback: { _, type, event, gestures in
-                let gestures = Unmanaged<Gestures>.fromOpaque(gestures!).takeUnretainedValue()
-                return gestures.consumes(type, event) ? nil : Unmanaged.passUnretained(event)
-            },
+            callback: tapCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else { return false }
         self.tap = tap
@@ -71,7 +68,7 @@ final class Gestures: @unchecked Sendable {
         strips.withLock { $0 = rects }
     }
 
-    private func consumes(_ type: CGEventType, _ event: CGEvent) -> Bool {
+    fileprivate func consumes(_ type: CGEventType, _ event: CGEvent) -> Bool {
         if event.getIntegerValueField(.eventSourceUserData) == Mover.tag { return false }
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
@@ -115,4 +112,13 @@ final class Gestures: @unchecked Sendable {
         let delta = vertical != 0 ? vertical : horizontal
         return continuous ? trackpad.feed(delta) : wheel.feed(delta)
     }
+}
+
+/// Outside any actor: a closure written inside `start()` would inherit its main-actor isolation,
+/// and Swift traps when the tap thread calls it.
+private func tapCallback(
+    _: CGEventTapProxy, type: CGEventType, event: CGEvent, gestures: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    let gestures = Unmanaged<Gestures>.fromOpaque(gestures!).takeUnretainedValue()
+    return gestures.consumes(type, event) ? nil : Unmanaged.passUnretained(event)
 }
