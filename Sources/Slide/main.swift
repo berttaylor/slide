@@ -109,7 +109,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.orderFrontStandardAboutPanel(nil)
     }
 
+    /// An unsigned rebuild or update gets a new identity, and macOS keeps showing the old one as
+    /// allowed while ignoring it. Clearing Slide's entry first means the switch the user turns on is
+    /// always the one for this copy.
     @objc private func openAccessibilitySettings() {
+        let reset = Process()
+        reset.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        reset.arguments = ["reset", "Accessibility", Bundle.main.bundleIdentifier ?? ""]
+        try? reset.run()
+        reset.waitUntilExit()
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 }
